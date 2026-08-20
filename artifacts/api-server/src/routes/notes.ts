@@ -23,6 +23,7 @@ router.post("/notes", async (req, res) => {
   }
 
   const tagTitle = normalizedTag(tags[0]);
+  const noteText = parsed.data.text.replace(tags[0], "").trim();
   try {
     const documentResponse = await googleDocsRequest(
       `/v1/documents/${encodeURIComponent(parsed.data.documentId)}?includeTabsContent=true`,
@@ -45,8 +46,8 @@ router.post("/notes", async (req, res) => {
     target = target || tabs[0];
 
     const entry = exactTabFound
-      ? `\n${parsed.data.text.trim()}\n`
-      : `\n\n— ${tagTitle} —\n${parsed.data.text.trim()}\n`;
+      ? `\n${noteText}\n`
+      : `\n\n— ${tagTitle} —\n${noteText}\n`;
     if (target) {
       const last = target.bodyContent.at(-1);
       const insertionIndex = Math.max(1, Number(last?.endIndex || 2) - 1);
