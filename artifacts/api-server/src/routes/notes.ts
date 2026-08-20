@@ -36,22 +36,27 @@ router.post("/notes", async (req, res) => {
     const document = await documentResponse.json();
     let tabs = extractTabs(document);
     let target = tabs.find((tab) => tab.title.toLowerCase() === tagTitle.toLowerCase());
-    let createdTab = false;
+    const exactTabFound = Boolean(target);
 
     const requests: Record<string, unknown>[] = [];
-    if (!target) {
-      requests.push({ createTab: { tabProperties: { title: tagTitle } } });
-      createdTab = true;
-    }
+    // Google Docs currently exposes existing tabs to the API, but does not
+    // support creating new document tabs through batchUpdate. Save safely in
+    // the first tab until the user creates the specialty tab in Docs.
+    target = target || tabs[0];
 
     const timestamp = new Date().toISOString().replace("T", " ").replace(/\.\d{3}Z$/, " UTC");
-    const entry = `\n[${timestamp}]\n${parsed.data.text.trim()}\n`;
+    const entry = exactTabFound
+      ? `\n[${timestamp}]\n${parsed.data.text.trim()}\n`
+      : `\n\n— ${tagTitle} —\n[${timestamp}]\n${parsed.data.text.trim()}\n`;
     if (target) {
       const last = target.bodyContent.at(-1);
       const insertionIndex = Math.max(1, Number(last?.endIndex || 2) - 1);
+      const location = target.tabId
+        ? { tabId: target.tabId, index: insertionIndex }
+        : { index: insertionIndex };
       requests.push({
         insertText: {
-          location: { tabId: target.tabId, index: insertionIndex },
+          location,
           text: entry,
         },
       });
@@ -68,31 +73,20 @@ router.post("/notes", async (req, res) => {
     if (!updateResponse.ok) {
       req.log.error({ status: updateResponse.status }, "Google Docs note update failed");
       res.status(502).json({
-        message: createdTab
-          ? "The note tab could not be created. Check that this document is editable."
-          : "The note could not be added. Check that this document is editable.",
+        message: "The note could not be added. Check that this document is editable.",
       });
       return;
-    }
-
-    if (createdTab) {
-      const refreshedResponse = await googleDocsRequest(
-        `/v1/documents/${encodeURIComponent(parsed.data.documentId)}?includeTabsContent=true`,
-        { method: "GET" },
-      );
-      if (refreshedResponse.ok) {
-        tabs = extractTabs(await refreshedResponse.json());
-        target = tabs.find((tab) => tab.title.toLowerCase() === tagTitle.toLowerCase());
-      }
     }
 
     const response = SubmitNoteResponse.parse({
       documentId: parsed.data.documentId,
       tabId: target?.tabId || "",
-      tabTitle: target?.title || tagTitle,
-      createdTab,
+      tabTitle: exactTabFound ? tagTitle : "Document",
+      createdTab: false,
       tags,
-      message: `Saved to ${target?.title || tagTitle}.`,
+      message: exactTabFound
+        ? `Saved to ${tagTitle}.`
+        : `Saved under ${tagTitle} in the main document tab. Create a ${tagTitle} tab in Google Docs to route future notes there.`,
     });
     res.json(response);
   } catch (error) {
