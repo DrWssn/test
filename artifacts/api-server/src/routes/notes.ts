@@ -44,10 +44,9 @@ router.post("/notes", async (req, res) => {
     // the first tab until the user creates the specialty tab in Docs.
     target = target || tabs[0];
 
-    const timestamp = new Date().toISOString().replace("T", " ").replace(/\.\d{3}Z$/, " UTC");
     const entry = exactTabFound
-      ? `\n[${timestamp}]\n${parsed.data.text.trim()}\n`
-      : `\n\n— ${tagTitle} —\n[${timestamp}]\n${parsed.data.text.trim()}\n`;
+      ? `\n${parsed.data.text.trim()}\n`
+      : `\n\n— ${tagTitle} —\n${parsed.data.text.trim()}\n`;
     if (target) {
       const last = target.bodyContent.at(-1);
       const insertionIndex = Math.max(1, Number(last?.endIndex || 2) - 1);
