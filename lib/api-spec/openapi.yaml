@@ -10,6 +10,10 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: documents
+    description: Google Docs document setup and inspection
+  - name: notes
+    description: Tagged medical note capture
 paths:
   /healthz:
     get:
@@ -24,6 +28,84 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /documents:
+    post:
+      operationId: createDocument
+      tags: [documents]
+      summary: Create a Google Doc
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDocumentRequest"
+      responses:
+        "201":
+          description: Created document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentInfo"
+        "502":
+          description: Google Docs error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /documents/{documentId}:
+    get:
+      operationId: getDocument
+      tags: [documents]
+      summary: Inspect a Google Doc and its tabs
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Document details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentInfo"
+        "502":
+          description: Google Docs error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /notes:
+    post:
+      operationId: submitNote
+      tags: [notes]
+      summary: Send a tagged medical note to Google Docs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitNoteRequest"
+      responses:
+        "200":
+          description: Note appended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoteSubmissionResult"
+        "400":
+          description: Invalid note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Google Docs error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +115,84 @@ components:
           type: string
       required:
         - status
+    CreateDocumentRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+      required:
+        - title
+    DocumentTab:
+      type: object
+      properties:
+        tabId:
+          type: string
+        title:
+          type: string
+      required:
+        - tabId
+        - title
+    DocumentInfo:
+      type: object
+      properties:
+        documentId:
+          type: string
+        title:
+          type: string
+        url:
+          type: string
+        tabs:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentTab"
+      required:
+        - documentId
+        - title
+        - url
+        - tabs
+    SubmitNoteRequest:
+      type: object
+      properties:
+        documentId:
+          type: string
+        text:
+          type: string
+          minLength: 1
+          maxLength: 20000
+      required:
+        - documentId
+        - text
+    NoteSubmissionResult:
+      type: object
+      properties:
+        documentId:
+          type: string
+        tabId:
+          type: string
+        tabTitle:
+          type: string
+        createdTab:
+          type: boolean
+        tags:
+          type: array
+          items:
+            type: string
+        message:
+          type: string
+      required:
+        - documentId
+        - tabId
+        - tabTitle
+        - createdTab
+        - tags
+        - message
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
 

@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/"
+title = "Medical Notes"
+description = "An Android-first medical note app that sends tagged notes into matching tabs in a connected Google Doc, creating tabs automatically when a new specialty tag appears."
+version = "1.0.0"
+id = "artifacts/medical-notes"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/" ]
+localPort = 24975
+
+[services.development]
+run = "pnpm --filter @workspace/medical-notes run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/medical-notes", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/medical-notes", "run", "serve" ]
+
+[services.env]
+PORT = "24975"
+BASE_PATH = "/"
