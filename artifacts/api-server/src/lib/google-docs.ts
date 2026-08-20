@@ -4,7 +4,11 @@ const connectors = new ReplitConnectors();
 
 export async function googleDocsRequest(
   path: string,
-  options?: RequestInit,
+  options?: {
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+  },
 ): Promise<Response> {
   return connectors.proxy("google-docs", path, options);
 }

@@ -1,0 +1,1 @@
+- [Google Docs tabs integration](google-docs-tabs.md) — use includeTabsContent and tab-scoped writes; Docs alone cannot list documents.
