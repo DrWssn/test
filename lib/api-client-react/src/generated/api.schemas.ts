@@ -73,6 +73,25 @@ export interface DriveDocumentList {
   files: DriveDocument[];
 }
 
+export type GeminiImageDraftRequestImageMimeType = typeof GeminiImageDraftRequestImageMimeType[keyof typeof GeminiImageDraftRequestImageMimeType];
+
+
+export const GeminiImageDraftRequestImageMimeType = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+} as const;
+
+export interface GeminiImageDraftRequest {
+  /** @maxLength 10000000 */
+  imageBase64: string;
+  imageMimeType: GeminiImageDraftRequestImageMimeType;
+}
+
+export interface GeminiImageDraftResult {
+  draftText: string;
+}
+
 export interface ErrorResponse {
   message: string;
 }

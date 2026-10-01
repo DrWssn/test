@@ -24,6 +24,8 @@ import type {
   DocumentInfo,
   DriveDocumentList,
   ErrorResponse,
+  GeminiImageDraftRequest,
+  GeminiImageDraftResult,
   HealthStatus,
   NoteSubmissionResult,
   SubmitNoteRequest
@@ -429,4 +431,75 @@ export function useListDriveDocuments<TData = Awaited<ReturnType<typeof listDriv
 
 
 
+
+export const getDraftNoteFromImageUrl = () => {
+
+
+
+
+  return `/api/gemini/draft-note-from-image`
+}
+
+/**
+ * @summary Draft note wording from a user-selected image
+ */
+export const draftNoteFromImage = async (geminiImageDraftRequest: GeminiImageDraftRequest, options?: Parameters<typeof customFetch>[1]): Promise<GeminiImageDraftResult> => {
+
+  return customFetch<GeminiImageDraftResult>(getDraftNoteFromImageUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(geminiImageDraftRequest)
+  }
+);}
+
+
+
+
+
+export const getDraftNoteFromImageMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof draftNoteFromImage>>, TError,{data: BodyType<GeminiImageDraftRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof draftNoteFromImage>>, TError,{data: BodyType<GeminiImageDraftRequest>}, TContext> => {
+
+const mutationKey = ['draftNoteFromImage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof draftNoteFromImage>>, {data: BodyType<GeminiImageDraftRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  draftNoteFromImage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DraftNoteFromImageMutationResult = NonNullable<Awaited<ReturnType<typeof draftNoteFromImage>>>
+    export type DraftNoteFromImageMutationBody = BodyType<GeminiImageDraftRequest>
+    export type DraftNoteFromImageMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Draft note wording from a user-selected image
+ */
+export const useDraftNoteFromImage = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof draftNoteFromImage>>, TError,{data: BodyType<GeminiImageDraftRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof draftNoteFromImage>>,
+        TError,
+        {data: BodyType<GeminiImageDraftRequest>},
+        TContext
+      > => {
+      return useMutation(getDraftNoteFromImageMutationOptions(options));
+    }
 

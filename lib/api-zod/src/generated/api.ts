@@ -100,3 +100,20 @@ export const ListDriveDocumentsResponse = zod.object({
 })
 
 
+/**
+ * @summary Draft note wording from a user-selected image
+ */
+export const draftNoteFromImageBodyImageBase64Max = 10000000;
+
+
+
+export const DraftNoteFromImageBody = zod.object({
+  "imageBase64": zod.string().max(draftNoteFromImageBodyImageBase64Max),
+  "imageMimeType": zod.enum(['image/jpeg', 'image/png', 'image/webp'])
+})
+
+export const DraftNoteFromImageResponse = zod.object({
+  "draftText": zod.string()
+})
+
+

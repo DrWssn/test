@@ -16,6 +16,8 @@ tags:
     description: Tagged medical note capture
   - name: drive
     description: Google Drive document picker
+  - name: gemini
+    description: Gemini-assisted note drafting
 paths:
   /healthz:
     get:
@@ -122,6 +124,48 @@ paths:
                 $ref: "#/components/schemas/DriveDocumentList"
         "502":
           description: Google Drive error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /gemini/draft-note-from-image:
+    post:
+      operationId: draftNoteFromImage
+      tags: [gemini]
+      summary: Draft note wording from a user-selected image
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GeminiImageDraftRequest"
+      responses:
+        "200":
+          description: Suggested note wording for user review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeminiImageDraftResult"
+        "400":
+          description: Invalid image
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Image drafting rate limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Gemini could not process the image
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Gemini is not configured
           content:
             application/json:
               schema:
@@ -244,6 +288,25 @@ components:
             $ref: "#/components/schemas/DriveDocument"
       required:
         - files
+    GeminiImageDraftRequest:
+      type: object
+      properties:
+        imageBase64:
+          type: string
+          maxLength: 10000000
+        imageMimeType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp]
+      required:
+        - imageBase64
+        - imageMimeType
+    GeminiImageDraftResult:
+      type: object
+      properties:
+        draftText:
+          type: string
+      required:
+        - draftText
     ErrorResponse:
       type: object
       properties:
