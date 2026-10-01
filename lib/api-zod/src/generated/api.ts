@@ -62,11 +62,19 @@ export const GetDocumentResponse = zod.object({
  */
 export const submitNoteBodyTextMax = 20000;
 
+export const submitNoteBodyImageBase64Max = 10000000;
+
+export const submitNoteBodyImageNameMax = 160;
+
 
 
 export const SubmitNoteBody = zod.object({
   "documentId": zod.string(),
-  "text": zod.string().min(1).max(submitNoteBodyTextMax)
+  "text": zod.string().min(1).max(submitNoteBodyTextMax),
+  "imageUrl": zod.string().optional(),
+  "imageBase64": zod.string().max(submitNoteBodyImageBase64Max).optional(),
+  "imageMimeType": zod.enum(['image/jpeg', 'image/png', 'image/webp']).optional(),
+  "imageName": zod.string().max(submitNoteBodyImageNameMax).optional()
 })
 
 export const SubmitNoteResponse = zod.object({
@@ -76,6 +84,19 @@ export const SubmitNoteResponse = zod.object({
   "createdTab": zod.boolean(),
   "tags": zod.array(zod.string()),
   "message": zod.string()
+})
+
+
+/**
+ * @summary List Google Docs available in Google Drive
+ */
+export const ListDriveDocumentsResponse = zod.object({
+  "files": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "modifiedTime": zod.string(),
+  "webViewLink": zod.string()
+}))
 })
 
 

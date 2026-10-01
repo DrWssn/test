@@ -29,6 +29,15 @@ export interface DocumentInfo {
   tabs: DocumentTab[];
 }
 
+export type SubmitNoteRequestImageMimeType = typeof SubmitNoteRequestImageMimeType[keyof typeof SubmitNoteRequestImageMimeType];
+
+
+export const SubmitNoteRequestImageMimeType = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+} as const;
+
 export interface SubmitNoteRequest {
   documentId: string;
   /**
@@ -36,6 +45,12 @@ export interface SubmitNoteRequest {
      * @maxLength 20000
      */
   text: string;
+  imageUrl?: string;
+  /** @maxLength 10000000 */
+  imageBase64?: string;
+  imageMimeType?: SubmitNoteRequestImageMimeType;
+  /** @maxLength 160 */
+  imageName?: string;
 }
 
 export interface NoteSubmissionResult {
@@ -45,6 +60,17 @@ export interface NoteSubmissionResult {
   createdTab: boolean;
   tags: string[];
   message: string;
+}
+
+export interface DriveDocument {
+  id: string;
+  name: string;
+  modifiedTime: string;
+  webViewLink: string;
+}
+
+export interface DriveDocumentList {
+  files: DriveDocument[];
 }
 
 export interface ErrorResponse {

@@ -14,6 +14,8 @@ tags:
     description: Google Docs document setup and inspection
   - name: notes
     description: Tagged medical note capture
+  - name: drive
+    description: Google Drive document picker
 paths:
   /healthz:
     get:
@@ -106,6 +108,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /drive-documents:
+    get:
+      operationId: listDriveDocuments
+      tags: [drive]
+      summary: List Google Docs available in Google Drive
+      responses:
+        "200":
+          description: Available Google Docs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DriveDocumentList"
+        "502":
+          description: Google Drive error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -161,6 +181,17 @@ components:
           type: string
           minLength: 1
           maxLength: 20000
+        imageUrl:
+          type: string
+        imageBase64:
+          type: string
+          maxLength: 10000000
+        imageMimeType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp]
+        imageName:
+          type: string
+          maxLength: 160
       required:
         - documentId
         - text
@@ -188,6 +219,31 @@ components:
         - createdTab
         - tags
         - message
+    DriveDocument:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        modifiedTime:
+          type: string
+        webViewLink:
+          type: string
+      required:
+        - id
+        - name
+        - modifiedTime
+        - webViewLink
+    DriveDocumentList:
+      type: object
+      properties:
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/DriveDocument"
+      required:
+        - files
     ErrorResponse:
       type: object
       properties:

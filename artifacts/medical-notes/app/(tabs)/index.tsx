@@ -2,6 +2,8 @@ import { useMutation } from '@tanstack/react-query';
 import { useSubmitNote } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as Clipboard from 'expo-clipboard';
+import * as ImagePicker from 'expo-image-picker';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useDocument } from '@/context/DocumentContext';
 import { useColors } from '@/hooks/useColors';
@@ -9,6 +11,8 @@ import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -23,6 +27,14 @@ export default function CaptureScreen() {
   const router = useRouter();
   const { documentId } = useDocument();
   const [text, setText] = useState('');
+  const [image, setImage] = useState<{
+    base64?: string;
+    uri: string;
+    mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+    fileName: string;
+  } | null>(null);
+  const [imageUrl, setImageUrl] = useState('');
+  const [showImageUrl, setShowImageUrl] = useState(false);
   const [savedMessage, setSavedMessage] = useState('');
   const submitNote = useSubmitNote();
   const tags = useMemo(
@@ -39,10 +51,22 @@ export default function CaptureScreen() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSavedMessage('');
     submitNote.mutate(
-      { data: { documentId, text: text.trim() } },
+      {
+        data: {
+          documentId,
+          text: text.trim(),
+          ...(image?.base64
+            ? { imageBase64: image.base64, imageMimeType: image.mimeType, imageName: image.fileName }
+            : {}),
+          ...(imageUrl.trim() ? { imageUrl: imageUrl.trim() } : {}),
+        },
+      },
       {
         onSuccess: (data) => {
           setText('');
+          setImage(null);
+          setImageUrl('');
+          setShowImageUrl(false);
           setSavedMessage(data.message);
           void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         },
@@ -51,6 +75,52 @@ export default function CaptureScreen() {
         },
       },
     );
+  };
+
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      base64: true,
+      quality: 0.85,
+    });
+    const asset = result.canceled ? undefined : result.assets?.[0];
+    if (asset) {
+      if (!asset.base64) {
+        Alert.alert('Image could not be read', 'Please choose the image again.');
+        return;
+      }
+      const mimeType = asset.mimeType || 'image/jpeg';
+      if (mimeType !== 'image/jpeg' && mimeType !== 'image/png' && mimeType !== 'image/webp') {
+        Alert.alert('Image format not supported', 'Choose a JPG, PNG, or WebP image.');
+        return;
+      }
+      setImage({
+        base64: asset.base64,
+        uri: asset.uri,
+        mimeType,
+        fileName: (asset.fileName || 'medical-note-image.jpg').slice(0, 160),
+      });
+      setImageUrl('');
+      setShowImageUrl(false);
+    }
+  };
+
+  const pasteImage = async () => {
+    const pasted = await Clipboard.getImageAsync({ format: 'png' });
+    if (pasted?.data) {
+      if (pasted.data.length > 10_000_000) {
+        Alert.alert('Image is too large', 'Choose or copy an image smaller than 7.5 MB.');
+        return;
+      }
+      setImage({
+        base64: pasted.data,
+        uri: `data:image/png;base64,${pasted.data}`,
+        mimeType: 'image/png',
+        fileName: 'clipboard-image.png',
+      });
+      setImageUrl('');
+      setShowImageUrl(false);
+    }
   };
 
   const canSend = Boolean(documentId && text.trim() && tags.length > 0 && !submitNote.isPending);
@@ -128,6 +198,46 @@ export default function CaptureScreen() {
           </View>
         </View>
 
+        <View style={styles.imageTools}>
+          <Text style={[styles.helper, { color: colors.mutedForeground }]}>Add an image</Text>
+          <View style={styles.imageButtons}>
+            <Pressable testID="attach-image" onPress={pickImage} style={[styles.imageButton, { backgroundColor: colors.secondary }]}>
+              <Feather name="paperclip" size={15} color={colors.primary} />
+              <Text style={[styles.imageButtonText, { color: colors.secondaryForeground }]}>Attach</Text>
+            </Pressable>
+            <Pressable testID="paste-image" onPress={pasteImage} style={[styles.imageButton, { backgroundColor: colors.secondary }]}>
+              <Feather name="clipboard" size={15} color={colors.primary} />
+              <Text style={[styles.imageButtonText, { color: colors.secondaryForeground }]}>Paste</Text>
+            </Pressable>
+            <Pressable testID="image-link" onPress={() => setShowImageUrl((current) => !current)} style={[styles.imageButton, { backgroundColor: colors.secondary }]}>
+              <Feather name="link" size={15} color={colors.primary} />
+              <Text style={[styles.imageButtonText, { color: colors.secondaryForeground }]}>Link</Text>
+            </Pressable>
+          </View>
+        </View>
+        {showImageUrl ? (
+          <TextInput
+            testID="image-url-input"
+            value={imageUrl}
+            onChangeText={(value) => { setImageUrl(value); if (value) setImage(null); }}
+            placeholder="https://example.com/image.jpg"
+            placeholderTextColor={colors.mutedForeground}
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={[styles.urlInput, { color: colors.foreground, borderColor: colors.input, backgroundColor: colors.card }]}
+          />
+        ) : null}
+        {image ? (
+          <View style={[styles.imagePreview, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Image source={{ uri: image.uri }} style={styles.previewImage} />
+            <View style={styles.flex}>
+              <Text style={[styles.imageName, { color: colors.foreground }]} numberOfLines={1}>{image.fileName}</Text>
+              <Text style={[styles.helper, { color: colors.mutedForeground }]}>Will be inserted with the note</Text>
+            </View>
+            <Pressable testID="remove-image" onPress={() => setImage(null)} hitSlop={10}><Feather name="x-circle" size={21} color={colors.mutedForeground} /></Pressable>
+          </View>
+        ) : null}
+
         {tags.length > 1 && (
           <View style={[styles.notice, { backgroundColor: colors.accent }]}>
             <Feather name="info" size={16} color={colors.accentForeground} />
@@ -196,4 +306,12 @@ const styles = StyleSheet.create({
   noticeText: { fontFamily: 'Inter_500Medium', fontSize: 13, lineHeight: 19, flex: 1 },
   sendButton: { minHeight: 56, borderRadius: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 2 },
   sendText: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
+  imageTools: { gap: 8 },
+  imageButtons: { flexDirection: 'row', gap: 8 },
+  imageButton: { borderRadius: 11, paddingHorizontal: 11, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  imageButtonText: { fontFamily: 'Inter_600SemiBold', fontSize: 12 },
+  urlInput: { minHeight: 46, borderWidth: 1, borderRadius: 13, paddingHorizontal: 13, fontFamily: 'Inter_400Regular', fontSize: 14 },
+  imagePreview: { borderWidth: 1, borderRadius: 15, padding: 9, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  previewImage: { width: 54, height: 54, borderRadius: 10 },
+  imageName: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
 });

@@ -22,6 +22,7 @@ import type {
 import type {
   CreateDocumentRequest,
   DocumentInfo,
+  DriveDocumentList,
   ErrorResponse,
   HealthStatus,
   NoteSubmissionResult,
@@ -351,4 +352,81 @@ export const useSubmitNote = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getSubmitNoteMutationOptions(options));
     }
+
+export const getListDriveDocumentsUrl = () => {
+
+
+
+
+  return `/api/drive-documents`
+}
+
+/**
+ * @summary List Google Docs available in Google Drive
+ */
+export const listDriveDocuments = async ( options?: Parameters<typeof customFetch>[1]): Promise<DriveDocumentList> => {
+
+  return customFetch<DriveDocumentList>(getListDriveDocumentsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDriveDocumentsQueryKey = () => {
+    return [
+    `/api/drive-documents`
+    ] as const;
+    }
+
+
+export const getListDriveDocumentsQueryOptions = <TData = Awaited<ReturnType<typeof listDriveDocuments>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDriveDocuments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDriveDocumentsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDriveDocuments>>> = ({ signal }) => listDriveDocuments({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDriveDocuments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDriveDocumentsQueryResult = NonNullable<Awaited<ReturnType<typeof listDriveDocuments>>>
+export type ListDriveDocumentsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary List Google Docs available in Google Drive
+ */
+
+export function useListDriveDocuments<TData = Awaited<ReturnType<typeof listDriveDocuments>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDriveDocuments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDriveDocumentsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

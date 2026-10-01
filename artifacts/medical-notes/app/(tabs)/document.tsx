@@ -1,4 +1,4 @@
-import { getGetDocumentQueryKey, useCreateDocument, useGetDocument } from '@workspace/api-client-react';
+import { getGetDocumentQueryKey, getListDriveDocumentsQueryKey, useCreateDocument, useGetDocument, useListDriveDocuments } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
@@ -25,6 +25,9 @@ export default function DocumentScreen() {
       enabled: hydrated && Boolean(documentId),
       queryKey: getGetDocumentQueryKey(documentId),
     },
+  });
+  const driveDocuments = useListDriveDocuments({
+    query: { queryKey: getListDriveDocumentsQueryKey() },
   });
   const createDocument = useCreateDocument();
 
@@ -91,6 +94,22 @@ export default function DocumentScreen() {
 
         <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.panelHeader}>
+            <View style={[styles.iconCircle, { backgroundColor: '#E8E2F8' }]}><Feather name="folder" size={20} color="#6951A6" /></View>
+            <View style={styles.flex}><Text style={[styles.panelTitle, { color: colors.foreground }]}>Choose from Google Drive</Text><Text style={[styles.panelText, { color: colors.mutedForeground }]}>Select one of your Google Docs.</Text></View>
+          </View>
+          {driveDocuments.isLoading ? <ActivityIndicator color={colors.primary} /> : driveDocuments.isError ? <Text style={[styles.panelText, { color: colors.destructive }]}>Could not load Google Drive.</Text> : driveDocuments.data?.files.length ? (
+            <View style={styles.driveList}>{driveDocuments.data.files.map((file) => (
+              <Pressable key={file.id} testID={`drive-document-${file.id}`} onPress={() => { void setDocumentId(file.id); setValue(file.id); setMessage(`${file.name} connected.`); }} style={({ pressed }) => [styles.driveRow, { backgroundColor: colors.secondary, opacity: pressed ? 0.75 : 1 }]}>
+                <Feather name="file-text" size={17} color={colors.primary} />
+                <Text style={[styles.driveName, { color: colors.foreground }]} numberOfLines={1}>{file.name}</Text>
+                <Feather name="chevron-right" size={17} color={colors.mutedForeground} />
+              </Pressable>
+            ))}</View>
+          ) : <Text style={[styles.panelText, { color: colors.mutedForeground }]}>No Google Docs found.</Text>}
+        </View>
+
+        <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.panelHeader}>
             <View style={[styles.iconCircle, { backgroundColor: '#FFF0D9' }]}><Feather name="file-plus" size={20} color="#B87516" /></View>
             <View style={styles.flex}><Text style={[styles.panelTitle, { color: colors.foreground }]}>Create a fresh doc</Text><Text style={[styles.panelText, { color: colors.mutedForeground }]}>A blank document, ready for your tabs.</Text></View>
           </View>
@@ -149,4 +168,7 @@ const styles = StyleSheet.create({
   openLink: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
   disconnect: { fontFamily: 'Inter_600SemiBold', fontSize: 13, marginTop: 3 },
   message: { fontFamily: 'Inter_600SemiBold', textAlign: 'center', fontSize: 13, marginTop: 14 },
+  driveList: { gap: 7 },
+  driveRow: { minHeight: 46, borderRadius: 12, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  driveName: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13 },
 });

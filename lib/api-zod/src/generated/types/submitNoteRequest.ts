@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { SubmitNoteRequestImageMimeType } from './submitNoteRequestImageMimeType';
 
 export interface SubmitNoteRequest {
   documentId: string;
@@ -13,4 +14,10 @@ export interface SubmitNoteRequest {
      * @maxLength 20000
      */
   text: string;
+  imageUrl?: string;
+  /** @maxLength 10000000 */
+  imageBase64?: string;
+  imageMimeType?: SubmitNoteRequestImageMimeType;
+  /** @maxLength 160 */
+  imageName?: string;
 }

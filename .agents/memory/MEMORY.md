@@ -1,1 +1,2 @@
 - [Google Docs tabs integration](google-docs-tabs.md) — use includeTabsContent and tab-scoped writes; Docs alone cannot list documents.
+- [Medical image privacy](medical-image-privacy.md) — keep device and clipboard attachments private in Drive; add private links to notes.
