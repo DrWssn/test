@@ -1,3 +1,3 @@
-- [Google Docs tabs integration](google-docs-tabs.md) — use includeTabsContent and tab-scoped writes; Docs alone cannot list documents.
+- [Google Docs tabs integration](google-docs-tabs.md) — read tabs with includeTabsContent; create missing tabs via addDocumentTab; Drive is still needed to list documents.
 - [Medical image privacy](medical-image-privacy.md) — keep device and clipboard attachments private in Drive; add private links to notes.
 - [Gemini API access](gemini-api-access.md) — use the user's server-side Gemini API key; do not retry managed setup unless asked.

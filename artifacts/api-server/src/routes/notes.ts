@@ -39,13 +39,56 @@ router.post("/notes", async (req, res) => {
     const document = await documentResponse.json();
     let tabs = extractTabs(document);
     let target = tabs.find((tab) => tab.title.toLowerCase() === tagTitle.toLowerCase());
-    const exactTabFound = Boolean(target);
+    let createdTab = false;
 
-    const requests: Record<string, unknown>[] = [];
-    // Google Docs currently exposes existing tabs to the API, but does not
-    // support creating new document tabs through batchUpdate. Save safely in
-    // the first tab until the user creates the specialty tab in Docs.
-    target = target || tabs[0];
+    if (!target) {
+      const addTabResponse = await googleDocsRequest(
+        `/v1/documents/${encodeURIComponent(parsed.data.documentId)}:batchUpdate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            requests: [{ addDocumentTab: { tabProperties: { title: tagTitle } } }],
+          }),
+        },
+      );
+      if (!addTabResponse.ok) {
+        req.log.error({ status: addTabResponse.status }, "Google Docs specialty tab creation failed");
+        res.status(502).json({
+          message: `We could not create the ${tagTitle} tab. Check that this document is editable.`,
+        });
+        return;
+      }
+
+      const addTabResult = await addTabResponse.json() as {
+        replies?: Array<{ addDocumentTab?: { tabProperties?: { tabId?: string } } }>;
+      };
+      const createdTabId = addTabResult.replies?.[0]?.addDocumentTab?.tabProperties?.tabId;
+      if (!createdTabId) {
+        req.log.error("Google Docs did not return the created specialty tab ID");
+        res.status(502).json({ message: `The ${tagTitle} tab was created, but the note could not be routed.` });
+        return;
+      }
+
+      const refreshedDocumentResponse = await googleDocsRequest(
+        `/v1/documents/${encodeURIComponent(parsed.data.documentId)}?includeTabsContent=true`,
+        { method: "GET" },
+      );
+      if (!refreshedDocumentResponse.ok) {
+        req.log.error({ status: refreshedDocumentResponse.status }, "Google Docs tab refresh failed");
+        res.status(502).json({ message: `The ${tagTitle} tab was created, but the note could not be routed.` });
+        return;
+      }
+
+      tabs = extractTabs(await refreshedDocumentResponse.json());
+      target = tabs.find((tab) => tab.tabId === createdTabId);
+      if (!target) {
+        req.log.error("Google Docs created tab was not present in the refreshed document");
+        res.status(502).json({ message: `The ${tagTitle} tab was created, but the note could not be routed.` });
+        return;
+      }
+      createdTab = true;
+    }
 
     let privateImageLink: string | undefined;
     if (parsed.data.imageBase64) {
@@ -81,35 +124,32 @@ router.post("/notes", async (req, res) => {
       }
     }
 
-    const prefix = exactTabFound ? "\n" : "\n\n";
+    const prefix = createdTab ? "" : "\n";
     const attachmentLabel = privateImageLink ? "Image attachment" : "";
     const attachmentBlock = attachmentLabel ? `\n${attachmentLabel}` : "";
-    const entry = `${prefix}${exactTabFound ? "" : `— ${tagTitle} —\n`}${noteText}${attachmentBlock}\n`;
-    if (target) {
-      const last = target.bodyContent.at(-1);
-      const insertionIndex = Math.max(1, Number(last?.endIndex || 2) - 1);
-      const location = target.tabId
-        ? { tabId: target.tabId, index: insertionIndex }
-        : { index: insertionIndex };
+    const entry = `${prefix}${noteText}${attachmentBlock}\n`;
+    const last = target.bodyContent.at(-1);
+    const insertionIndex = Math.max(1, Number(last?.endIndex || 2) - 1);
+    const requests: Record<string, unknown>[] = [{
+      insertText: {
+        location: target.tabId
+          ? { tabId: target.tabId, index: insertionIndex }
+          : { index: insertionIndex },
+        text: entry,
+      },
+    }];
+    if (privateImageLink) {
       requests.push({
-        insertText: {
-          location,
-          text: entry,
+        updateTextStyle: {
+          range: {
+            ...(target.tabId ? { tabId: target.tabId } : {}),
+            startIndex: insertionIndex + entry.length - attachmentLabel.length - 1,
+            endIndex: insertionIndex + entry.length - 1,
+          },
+          textStyle: { link: { url: privateImageLink } },
+          fields: "link",
         },
       });
-      if (privateImageLink) {
-        requests.push({
-          updateTextStyle: {
-            range: {
-              ...(target.tabId ? { tabId: target.tabId } : {}),
-              startIndex: insertionIndex + entry.length - attachmentLabel.length - 1,
-              endIndex: insertionIndex + entry.length - 1,
-            },
-            textStyle: { link: { url: privateImageLink } },
-            fields: "link",
-          },
-        });
-      }
     }
 
     const updateResponse = await googleDocsRequest(
@@ -129,7 +169,7 @@ router.post("/notes", async (req, res) => {
     }
 
     let imageLinkMessage = "";
-    if (publicImageUrl && target) {
+    if (publicImageUrl) {
       const last = target.bodyContent.at(-1);
       const insertionIndex = Math.max(1, Number(last?.endIndex || 2) - 1) + entry.length;
       const imageResponse = await googleDocsRequest(
@@ -160,13 +200,13 @@ router.post("/notes", async (req, res) => {
 
     const response = SubmitNoteResponse.parse({
       documentId: parsed.data.documentId,
-      tabId: target?.tabId || "",
-      tabTitle: exactTabFound ? tagTitle : "Document",
-      createdTab: false,
+      tabId: target.tabId,
+      tabTitle: target.title,
+      createdTab,
       tags,
-      message: (exactTabFound
-        ? `Saved to ${tagTitle}.`
-        : `Saved under ${tagTitle} in the main document tab. Create a ${tagTitle} tab in Google Docs to route future notes there.`)
+      message: (createdTab
+        ? `Created the ${tagTitle} tab and saved the note there.`
+        : `Saved to ${tagTitle}.`)
         + (privateImageLink ? " Image attached as a private Google Drive link." : "")
         + imageLinkMessage,
     });
