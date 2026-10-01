@@ -87,8 +87,15 @@ router.post("/gemini/draft-note-from-image", draftLimiter, async (req, res) => {
 
     res.json(DraftNoteFromImageResponse.parse({ draftText }));
   } catch (error) {
+    const upstreamStatus = error && typeof error === "object" && "status" in error
+      && typeof error.status === "number"
+      ? error.status
+      : undefined;
     req.log.error(
-      { errorName: error instanceof Error ? error.name : "UnknownError" },
+      {
+        errorName: error instanceof Error ? error.name : "UnknownError",
+        ...(upstreamStatus === undefined ? {} : { upstreamStatus }),
+      },
       "Gemini image drafting failed",
     );
     res.status(502).json({ message: "Gemini could not draft from this image. Try again shortly." });
