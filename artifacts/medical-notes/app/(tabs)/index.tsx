@@ -1,4 +1,4 @@
-import { useDraftNoteFromImage, useSubmitNote } from '@workspace/api-client-react';
+import { useSubmitNote } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
@@ -36,8 +36,6 @@ export default function CaptureScreen() {
   const [showImageUrl, setShowImageUrl] = useState(false);
   const [savedMessage, setSavedMessage] = useState('');
   const submitNote = useSubmitNote();
-  const draftFromImage = useDraftNoteFromImage();
-  const [imageDraft, setImageDraft] = useState('');
   const tags = useMemo(
     () => [...new Set(text.match(/#[a-zA-Z][a-zA-Z0-9_-]*/g) || [])],
     [text],
@@ -66,7 +64,6 @@ export default function CaptureScreen() {
         onSuccess: (data) => {
           setText('');
           setImage(null);
-          setImageDraft('');
           setImageUrl('');
           setShowImageUrl(false);
           setSavedMessage(data.message);
@@ -102,8 +99,6 @@ export default function CaptureScreen() {
         mimeType,
         fileName: (asset.fileName || 'medical-note-image.jpg').slice(0, 160),
       });
-      setImageDraft('');
-      draftFromImage.reset();
       setImageUrl('');
       setShowImageUrl(false);
     }
@@ -122,27 +117,9 @@ export default function CaptureScreen() {
         mimeType: 'image/png',
         fileName: 'clipboard-image.png',
       });
-      setImageDraft('');
-      draftFromImage.reset();
       setImageUrl('');
       setShowImageUrl(false);
     }
-  };
-
-  const requestImageDraft = () => {
-    if (!image?.base64 || draftFromImage.isPending) return;
-    setImageDraft('');
-    draftFromImage.mutate(
-      { data: { imageBase64: image.base64, imageMimeType: image.mimeType } },
-      { onSuccess: (result) => setImageDraft(result.draftText) },
-    );
-  };
-
-  const addImageDraftToNote = () => {
-    const draft = imageDraft.trim();
-    if (!draft) return;
-    setText((current) => current.trim() ? `${current.trim()}\n${draft}` : draft);
-    setImageDraft('');
   };
 
   const canSend = Boolean(documentId && text.trim() && tags.length > 0 && !submitNote.isPending);
@@ -242,14 +219,14 @@ export default function CaptureScreen() {
             <TextInput
               testID="image-url-input"
               value={imageUrl}
-              onChangeText={(value) => { setImageUrl(value); if (value) { setImage(null); setImageDraft(''); } }}
+              onChangeText={(value) => { setImageUrl(value); if (value) setImage(null); }}
               placeholder="https://example.com/image.jpg"
               placeholderTextColor={colors.mutedForeground}
               autoCapitalize="none"
               autoCorrect={false}
               style={[styles.urlInput, { color: colors.foreground, borderColor: colors.input, backgroundColor: colors.card }]}
             />
-            <Text style={[styles.helper, { color: colors.mutedForeground }]}>To draft from an image link, download it and use Attach or Paste.</Text>
+            <Text style={[styles.helper, { color: colors.mutedForeground }]}>The image link will be included when the note is saved.</Text>
           </View>
         ) : null}
         {image ? (
@@ -259,43 +236,7 @@ export default function CaptureScreen() {
               <Text style={[styles.imageName, { color: colors.foreground }]} numberOfLines={1}>{image.fileName}</Text>
               <Text style={[styles.helper, { color: colors.mutedForeground }]}>Attached privately when the note is saved</Text>
             </View>
-            <Pressable testID="remove-image" onPress={() => { setImage(null); setImageDraft(''); draftFromImage.reset(); }} hitSlop={10}><Feather name="x-circle" size={21} color={colors.mutedForeground} /></Pressable>
-          </View>
-        ) : null}
-        {image ? (
-          <View style={[styles.aiPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.aiTitle, { color: colors.foreground }]}>Draft from image</Text>
-            <Text style={[styles.helper, { color: colors.mutedForeground }]}>Tapping Draft sends this image to Gemini. Review and edit the suggestion; it is not a diagnosis.</Text>
-            <Pressable
-              testID="draft-from-image"
-              onPress={requestImageDraft}
-              disabled={draftFromImage.isPending}
-              style={({ pressed }) => [styles.aiButton, { backgroundColor: colors.secondary, opacity: draftFromImage.isPending ? 0.65 : pressed ? 0.8 : 1 }]}
-            >
-              {draftFromImage.isPending ? <ActivityIndicator color={colors.primary} /> : <Feather name="zap" size={16} color={colors.primary} />}
-              <Text style={[styles.aiButtonText, { color: colors.secondaryForeground }]}>{draftFromImage.isPending ? 'Reading image…' : 'Draft note wording'}</Text>
-            </Pressable>
-            {draftFromImage.isError ? (
-              <Text style={[styles.helper, { color: colors.destructive }]}>Could not draft from this image. Check your connection and try again.</Text>
-            ) : null}
-            {imageDraft ? (
-              <View style={styles.draftReview}>
-                <Text style={[styles.draftLabel, { color: colors.mutedForeground }]}>Review and edit before adding</Text>
-                <TextInput
-                  testID="image-draft-input"
-                  multiline
-                  value={imageDraft}
-                  onChangeText={setImageDraft}
-                  placeholderTextColor={colors.mutedForeground}
-                  style={[styles.draftInput, { color: colors.foreground, borderColor: colors.input }]}
-                  textAlignVertical="top"
-                />
-                <Pressable testID="add-image-draft" onPress={addImageDraftToNote} style={({ pressed }) => [styles.aiButton, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}>
-                  <Feather name="plus" size={16} color={colors.primaryForeground} />
-                  <Text style={[styles.aiButtonText, { color: colors.primaryForeground }]}>Add draft to note</Text>
-                </Pressable>
-              </View>
-            ) : null}
+            <Pressable testID="remove-image" onPress={() => setImage(null)} hitSlop={10}><Feather name="x-circle" size={21} color={colors.mutedForeground} /></Pressable>
           </View>
         ) : null}
 
@@ -376,11 +317,4 @@ const styles = StyleSheet.create({
   previewImage: { width: 54, height: 54, borderRadius: 10 },
   imageName: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
   urlGroup: { gap: 2 },
-  aiPanel: { borderWidth: 1, borderRadius: 16, padding: 13, gap: 9 },
-  aiTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
-  aiButton: { minHeight: 42, borderRadius: 11, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  aiButtonText: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
-  draftReview: { gap: 7, marginTop: 2 },
-  draftLabel: { fontFamily: 'Inter_500Medium', fontSize: 12 },
-  draftInput: { minHeight: 95, maxHeight: 220, borderWidth: 1, borderRadius: 12, padding: 11, fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20 },
 });
