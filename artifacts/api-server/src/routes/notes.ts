@@ -124,27 +124,40 @@ router.post("/notes", async (req, res) => {
       }
     }
 
-    const prefix = createdTab ? "" : "\n";
+    const last = target.bodyContent.at(-1);
+    const insertionIndex = Math.max(1, Number(last?.endIndex || 2) - 1);
+    const addPageBreak = insertionIndex > 1;
+    // Docs inserts a page break followed by a newline, so the following text starts two indexes later.
+    const textInsertionIndex = insertionIndex + (addPageBreak ? 2 : 0);
+    const prefix = addPageBreak || insertionIndex === 1 ? "" : "\n";
     const attachmentLabel = privateImageLink ? "Image attachment" : "";
     const attachmentBlock = attachmentLabel ? `\n${attachmentLabel}` : "";
     const entry = `${prefix}${noteText}${attachmentBlock}\n`;
-    const last = target.bodyContent.at(-1);
-    const insertionIndex = Math.max(1, Number(last?.endIndex || 2) - 1);
-    const requests: Record<string, unknown>[] = [{
+    const requests: Record<string, unknown>[] = [];
+    if (addPageBreak) {
+      requests.push({
+        insertPageBreak: {
+          location: target.tabId
+            ? { tabId: target.tabId, index: insertionIndex }
+            : { index: insertionIndex },
+        },
+      });
+    }
+    requests.push({
       insertText: {
         location: target.tabId
-          ? { tabId: target.tabId, index: insertionIndex }
-          : { index: insertionIndex },
+          ? { tabId: target.tabId, index: textInsertionIndex }
+          : { index: textInsertionIndex },
         text: entry,
       },
-    }];
+    });
     if (privateImageLink) {
       requests.push({
         updateTextStyle: {
           range: {
             ...(target.tabId ? { tabId: target.tabId } : {}),
-            startIndex: insertionIndex + entry.length - attachmentLabel.length - 1,
-            endIndex: insertionIndex + entry.length - 1,
+            startIndex: textInsertionIndex + entry.length - attachmentLabel.length - 1,
+            endIndex: textInsertionIndex + entry.length - 1,
           },
           textStyle: { link: { url: privateImageLink } },
           fields: "link",
@@ -170,8 +183,7 @@ router.post("/notes", async (req, res) => {
 
     let imageLinkMessage = "";
     if (publicImageUrl) {
-      const last = target.bodyContent.at(-1);
-      const insertionIndex = Math.max(1, Number(last?.endIndex || 2) - 1) + entry.length;
+      const imageInsertionIndex = textInsertionIndex + entry.length;
       const imageResponse = await googleDocsRequest(
         `/v1/documents/${encodeURIComponent(parsed.data.documentId)}:batchUpdate`,
         {
@@ -181,8 +193,8 @@ router.post("/notes", async (req, res) => {
             requests: [{
               insertInlineImage: {
                 location: target.tabId
-                  ? { tabId: target.tabId, index: insertionIndex }
-                  : { index: insertionIndex },
+                  ? { tabId: target.tabId, index: imageInsertionIndex }
+                  : { index: imageInsertionIndex },
                 uri: publicImageUrl,
                 objectSize: {
                   height: { magnitude: 240, unit: "PT" },
@@ -205,8 +217,8 @@ router.post("/notes", async (req, res) => {
       createdTab,
       tags,
       message: (createdTab
-        ? `Created the ${tagTitle} tab and saved the note there.`
-        : `Saved to ${tagTitle}.`)
+        ? `Created the ${tagTitle} tab and saved the note there on its own page.`
+        : `Saved to ${tagTitle} on a new page.`)
         + (privateImageLink ? " Image attached as a private Google Drive link." : "")
         + imageLinkMessage,
     });
