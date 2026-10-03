@@ -6,6 +6,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # The release keystore was exported by Windows .NET, which names its only key "1".
+      ANDROID_KEY_ALIAS: '1'
     steps:
       - uses: actions/checkout@v4
 
@@ -50,11 +53,15 @@ jobs:
         run: |
           if [ -n "$ANDROID_KEYSTORE_PATH" ]; then
             keytool -list -storetype pkcs12 -keystore "$ANDROID_KEYSTORE_PATH" -storepass "$ANDROID_KEYSTORE_PASSWORD"
-            SHA1=$(keytool -list -v -storetype pkcs12 -keystore "$ANDROID_KEYSTORE_PATH" -alias medicalnotes -storepass "$ANDROID_KEYSTORE_PASSWORD" | grep 'SHA1:' | awk '{print $2}')
+            SHA1=$(keytool -list -v -storetype pkcs12 -keystore "$ANDROID_KEYSTORE_PATH" -alias "$ANDROID_KEY_ALIAS" -storepass "$ANDROID_KEYSTORE_PASSWORD" | grep 'SHA1:' | awk '{print $2}')
             KEY=release
           else
             SHA1=$(keytool -list -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android | grep 'SHA1:' | awk '{print $2}')
             KEY=debug
+          fi
+          if [ -z "$SHA1" ]; then
+            echo "::error::Could not read the $KEY key's SHA-1 (wrong alias or password?)"
+            exit 1
           fi
           echo "Signing SHA-1 ($KEY key): $SHA1"
           {

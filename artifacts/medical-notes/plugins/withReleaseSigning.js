@@ -8,7 +8,7 @@ const RELEASE_SIGNING_CONFIG = `
                 storeFile file(System.getenv('ANDROID_KEYSTORE_PATH'))
                 storeType 'pkcs12'
                 storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
-                keyAlias System.getenv('ANDROID_KEY_ALIAS') ?: 'medicalnotes'
+                keyAlias System.getenv('ANDROID_KEY_ALIAS') ?: '1'
                 keyPassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
             }
         }`;
