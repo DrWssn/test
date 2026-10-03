@@ -5,7 +5,8 @@ import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollV
 import { useDocument } from '@/context/DocumentContext';
 import { useColors } from '@/hooks/useColors';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useAuth } from '@/lib/google/auth';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function getDocumentId(value: string) {
@@ -30,6 +31,14 @@ export default function DocumentScreen() {
     query: { queryKey: getListDriveDocumentsQueryKey() },
   });
   const createDocument = useCreateDocument();
+  const { email, signOut } = useAuth();
+
+  const confirmSignOut = () => {
+    Alert.alert('Sign out?', 'You will need to sign in with Google again, and the connected document will be forgotten.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: () => void signOut() },
+    ]);
+  };
 
   useEffect(() => {
     if (documentId) setValue(documentId);
@@ -135,6 +144,14 @@ export default function DocumentScreen() {
           </View>
         ) : null}
         {message ? <Text style={[styles.message, { color: colors.primary }]}>{message}</Text> : null}
+
+        <View style={[styles.account, { borderColor: colors.border }]}>
+          <Feather name="user" size={16} color={colors.mutedForeground} />
+          <Text style={[styles.accountEmail, { color: colors.mutedForeground }]} numberOfLines={1}>{email}</Text>
+          <Pressable testID="sign-out-button" onPress={confirmSignOut} hitSlop={10}>
+            <Text style={[styles.disconnect, { color: colors.destructive, marginTop: 0 }]}>Sign out</Text>
+          </Pressable>
+        </View>
       </KeyboardAwareScrollViewCompat>
     </View>
   );
@@ -172,4 +189,6 @@ const styles = StyleSheet.create({
   driveList: { gap: 7 },
   driveRow: { minHeight: 46, borderRadius: 12, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 9 },
   driveName: { flex: 1, fontFamily: 'Inter_500Medium', fontSize: 13 },
+  account: { flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, marginTop: 24, paddingTop: 16 },
+  accountEmail: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 13 },
 });

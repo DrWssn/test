@@ -30,22 +30,44 @@ jobs:
         working-directory: artifacts/medical-notes
         run: pnpm exec expo prebuild --platform android --no-install
 
+      # Release key lives in repo secrets; without them the APK falls back to the public debug key.
+      - name: Decode release keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.p12"
+            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.p12" >> "$GITHUB_ENV"
+          else
+            echo "::warning::ANDROID_KEYSTORE_BASE64 secret not set; signing with the debug key."
+          fi
+
       # Google sign-in only works if an Android OAuth client in Google Cloud has this exact SHA-1.
       - name: Show signing SHA-1 for Google Cloud
         working-directory: artifacts/medical-notes/android/app
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          SHA1=$(keytool -list -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android | grep 'SHA1:' | awk '{print $2}')
-          echo "Signing SHA-1: $SHA1"
+          if [ -n "$ANDROID_KEYSTORE_PATH" ]; then
+            keytool -list -storetype pkcs12 -keystore "$ANDROID_KEYSTORE_PATH" -storepass "$ANDROID_KEYSTORE_PASSWORD"
+            SHA1=$(keytool -list -v -storetype pkcs12 -keystore "$ANDROID_KEYSTORE_PATH" -alias medicalnotes -storepass "$ANDROID_KEYSTORE_PASSWORD" | grep 'SHA1:' | awk '{print $2}')
+            KEY=release
+          else
+            SHA1=$(keytool -list -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android | grep 'SHA1:' | awk '{print $2}')
+            KEY=debug
+          fi
+          echo "Signing SHA-1 ($KEY key): $SHA1"
           {
             echo "### Google Cloud Android OAuth client"
             echo "- Package name: \`com.drwssn.medicalnotes\`"
-            echo "- SHA-1: \`$SHA1\`"
+            echo "- SHA-1 ($KEY key): \`$SHA1\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Build APK (JS bundled in, debug-signed)
+      - name: Build APK (JS bundled in)
         working-directory: artifacts/medical-notes/android
         env:
           EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         # arm64 only: covers virtually all current phones and cuts native build time by ~4x.
         run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a
 

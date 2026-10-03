@@ -102,12 +102,18 @@ async function fetchRawDocument(documentId: string) {
   );
 }
 
-async function batchUpdate(documentId: string, requests: unknown[], failMessage: string) {
+/** With requiredRevisionId, Google rejects the update (400) if the document changed since that revision was read. */
+async function batchUpdate(documentId: string, requests: unknown[], failMessage: string, requiredRevisionId?: string) {
+  const body = requiredRevisionId ? { requests, writeControl: { requiredRevisionId } } : { requests };
   return googleJson<any>(
     `${DOCS}/${encodeURIComponent(documentId)}:batchUpdate`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requests }) },
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
     failMessage,
   );
+}
+
+function isRevisionConflict(e: unknown) {
+  return e instanceof GoogleApiError && e.status === 400 && /revision/i.test(e.message);
 }
 
 export async function getDocument(documentId: string): Promise<DocumentInfo> {
@@ -200,60 +206,82 @@ export async function submitNote(input: SubmitNoteInput): Promise<SubmitNoteResu
     publicImageUrl = url.toString();
   }
 
-  let tabs = extractTabs(await fetchRawDocument(documentId));
-  let target = tabs.find((t) => t.title.toLowerCase() === tagTitle.toLowerCase());
   let createdTab = false;
-
-  if (!target) {
-    const addResult = await batchUpdate(
-      documentId,
-      [{ addDocumentTab: { tabProperties: { title: tagTitle } } }],
-      `We could not create the ${tagTitle} tab. Check that this document is editable.`,
-    );
-    const createdTabId: string | undefined = addResult?.replies?.[0]?.addDocumentTab?.tabProperties?.tabId;
-    if (!createdTabId) throw new GoogleApiError(`The ${tagTitle} tab was created, but the note could not be routed.`);
-    tabs = extractTabs(await fetchRawDocument(documentId));
-    target = tabs.find((t) => t.tabId === createdTabId);
-    if (!target) throw new GoogleApiError(`The ${tagTitle} tab was created, but the note could not be routed.`);
-    createdTab = true;
-  }
-
   let privateImageLink: string | undefined;
-  if (input.imageBase64) {
-    privateImageLink = await uploadImageToDrive(
-      input.imageBase64,
-      input.imageMimeType || 'image/jpeg',
-      input.imageName || `medical-note-${Date.now()}.jpg`,
-    );
-  }
+  let saved: { target: GoogleTab; loc: (index: number) => Record<string, unknown>; endIndex: number; revisionId?: string } | undefined;
 
-  const loc = (index: number) => (target!.tabId ? { tabId: target!.tabId, index } : { index });
-  const last = target.bodyContent.at(-1);
-  const insertionIndex = Math.max(1, Number(last?.endIndex || 2) - 1);
-  const addPageBreak = insertionIndex > 1;
-  // Docs inserts a page break followed by a newline, so the following text starts two indexes later.
-  const textInsertionIndex = insertionIndex + (addPageBreak ? 2 : 0);
-  const prefix = addPageBreak || insertionIndex === 1 ? '' : '\n';
-  const attachmentLabel = privateImageLink ? 'Image attachment' : '';
-  const entry = `${prefix}${noteText}${attachmentLabel ? `\n${attachmentLabel}` : ''}\n`;
+  // Insert positions come from a fresh read, and each write is pinned to that read's revision. If the doc
+  // changed in between (edited elsewhere, another phone), Google rejects the write and we re-read and retry.
+  for (let attempt = 0; attempt < 3 && !saved; attempt++) {
+    const document = await fetchRawDocument(documentId);
+    const tabs = extractTabs(document);
+    const target = tabs.find((t) => t.title.toLowerCase() === tagTitle.toLowerCase());
 
-  const requests: Record<string, unknown>[] = [];
-  if (addPageBreak) requests.push({ insertPageBreak: { location: loc(insertionIndex) } });
-  requests.push({ insertText: { location: loc(textInsertionIndex), text: entry } });
-  if (privateImageLink) {
-    requests.push({
-      updateTextStyle: {
-        range: {
-          ...(target.tabId ? { tabId: target.tabId } : {}),
-          startIndex: textInsertionIndex + entry.length - attachmentLabel.length - 1,
-          endIndex: textInsertionIndex + entry.length - 1,
+    if (!target) {
+      if (createdTab) throw new GoogleApiError(`The ${tagTitle} tab was created, but the note could not be routed.`);
+      const addResult = await batchUpdate(
+        documentId,
+        [{ addDocumentTab: { tabProperties: { title: tagTitle } } }],
+        `We could not create the ${tagTitle} tab. Check that this document is editable.`,
+      );
+      if (!addResult?.replies?.[0]?.addDocumentTab?.tabProperties?.tabId) {
+        throw new GoogleApiError(`The ${tagTitle} tab was created, but the note could not be routed.`);
+      }
+      createdTab = true;
+      attempt--; // Creating the tab is not a failed attempt; re-read to get the new tab's contents.
+      continue;
+    }
+
+    // Upload once, only after the destination tab is known to exist.
+    if (input.imageBase64 && !privateImageLink) {
+      privateImageLink = await uploadImageToDrive(
+        input.imageBase64,
+        input.imageMimeType || 'image/jpeg',
+        input.imageName || `medical-note-${Date.now()}.jpg`,
+      );
+    }
+
+    const loc = (index: number) => (target.tabId ? { tabId: target.tabId, index } : { index });
+    const last = target.bodyContent.at(-1);
+    const insertionIndex = Math.max(1, Number(last?.endIndex || 2) - 1);
+    const addPageBreak = insertionIndex > 1;
+    // Docs inserts a page break followed by a newline, so the following text starts two indexes later.
+    const textInsertionIndex = insertionIndex + (addPageBreak ? 2 : 0);
+    const prefix = addPageBreak || insertionIndex === 1 ? '' : '\n';
+    const attachmentLabel = privateImageLink ? 'Image attachment' : '';
+    const entry = `${prefix}${noteText}${attachmentLabel ? `\n${attachmentLabel}` : ''}\n`;
+
+    const requests: Record<string, unknown>[] = [];
+    if (addPageBreak) requests.push({ insertPageBreak: { location: loc(insertionIndex) } });
+    requests.push({ insertText: { location: loc(textInsertionIndex), text: entry } });
+    if (privateImageLink) {
+      requests.push({
+        updateTextStyle: {
+          range: {
+            ...(target.tabId ? { tabId: target.tabId } : {}),
+            startIndex: textInsertionIndex + entry.length - attachmentLabel.length - 1,
+            endIndex: textInsertionIndex + entry.length - 1,
+          },
+          textStyle: { link: { url: privateImageLink } },
+          fields: 'link',
         },
-        textStyle: { link: { url: privateImageLink } },
-        fields: 'link',
-      },
-    });
+      });
+    }
+
+    try {
+      const result = await batchUpdate(
+        documentId,
+        requests,
+        'The note could not be added. Check that this document is editable.',
+        document.revisionId,
+      );
+      saved = { target, loc, endIndex: textInsertionIndex + entry.length, revisionId: result?.writeControl?.requiredRevisionId };
+    } catch (e) {
+      if (!isRevisionConflict(e)) throw e;
+    }
   }
-  await batchUpdate(documentId, requests, 'The note could not be added. Check that this document is editable.');
+  if (!saved) throw new GoogleApiError('The document kept changing while saving. Please try again.');
+  const { target, loc } = saved;
 
   let imageLinkMessage = '';
   if (publicImageUrl) {
@@ -262,12 +290,13 @@ export async function submitNote(input: SubmitNoteInput): Promise<SubmitNoteResu
         documentId,
         [{
           insertInlineImage: {
-            location: loc(textInsertionIndex + entry.length),
+            location: loc(saved.endIndex),
             uri: publicImageUrl,
             objectSize: { height: { magnitude: 240, unit: 'PT' }, width: { magnitude: 360, unit: 'PT' } },
           },
         }],
         'image',
+        saved.revisionId,
       );
     } catch {
       imageLinkMessage = ' The note was saved, but Docs could not embed that link; try attaching the image file instead.';

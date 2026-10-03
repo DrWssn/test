@@ -4,7 +4,9 @@ import {
   isSuccessResponse,
   statusCodes,
 } from '@react-native-google-signin/google-signin';
+import { useQueryClient } from '@tanstack/react-query';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useDocument } from '@/context/DocumentContext';
 
 // Full Drive access is needed to list and edit Google Docs the app did not create.
 export const GOOGLE_SCOPES = [
@@ -68,6 +70,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const { clearDocument } = useDocument();
 
   useEffect(() => {
     onSessionExpired = () => {
@@ -129,8 +133,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Ignore: revoking can fail offline; sign out locally anyway.
     }
     await GoogleSignin.signOut();
+    // The next account must not see this account's documents or keep writing to its doc.
+    queryClient.clear();
+    await clearDocument();
     setEmail(null);
-  }, []);
+  }, [queryClient, clearDocument]);
 
   const value = useMemo(() => ({ ready, email, error, signIn, signOut }), [ready, email, error, signIn, signOut]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
