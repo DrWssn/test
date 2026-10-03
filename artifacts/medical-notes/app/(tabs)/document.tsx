@@ -1,4 +1,4 @@
-import { getGetDocumentQueryKey, getListDriveDocumentsQueryKey, useCreateDocument, useGetDocument, useListDriveDocuments } from '@workspace/api-client-react';
+import { getGetDocumentQueryKey, getListDriveDocumentsQueryKey, useCreateDocument, useGetDocument, useListDriveDocuments } from '@/lib/google/hooks';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';

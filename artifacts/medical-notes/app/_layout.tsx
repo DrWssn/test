@@ -13,12 +13,12 @@ import {
 } from '@expo-google-fonts/inter';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { setBaseUrl } from '@workspace/api-client-react';
+import { AuthProvider } from '@/lib/google/auth';
+import { SignInGate } from '@/lib/google/SignInGate';
 import { DocumentProvider } from '@/context/DocumentContext';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
-setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
 
 const queryClient = new QueryClient();
 
@@ -53,7 +53,11 @@ export default function RootLayout() {
           <DocumentProvider>
             <GestureHandlerRootView>
               <KeyboardProvider>
-                <RootLayoutNav />
+                <AuthProvider>
+                  <SignInGate>
+                    <RootLayoutNav />
+                  </SignInGate>
+                </AuthProvider>
               </KeyboardProvider>
             </GestureHandlerRootView>
           </DocumentProvider>

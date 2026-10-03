@@ -1,4 +1,4 @@
-import { useSubmitNote } from '@workspace/api-client-react';
+import { useSubmitNote } from '@/lib/google/hooks';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
