@@ -97,7 +97,7 @@ export default function DocumentScreen() {
             <View style={[styles.iconCircle, { backgroundColor: '#E8E2F8' }]}><Feather name="folder" size={20} color="#6951A6" /></View>
             <View style={styles.flex}><Text style={[styles.panelTitle, { color: colors.foreground }]}>Choose from Google Drive</Text><Text style={[styles.panelText, { color: colors.mutedForeground }]}>Select one of your Google Docs.</Text></View>
           </View>
-          {driveDocuments.isLoading ? <ActivityIndicator color={colors.primary} /> : driveDocuments.isError ? <Text style={[styles.panelText, { color: colors.destructive }]}>Could not load Google Drive.</Text> : driveDocuments.data?.files.length ? (
+          {driveDocuments.isLoading ? <ActivityIndicator color={colors.primary} /> : driveDocuments.isError ? <Text style={[styles.panelText, { color: colors.destructive }]}>{driveDocuments.error?.message || 'Could not load Google Drive.'}</Text> : driveDocuments.data?.files.length ? (
             <View style={styles.driveList}>{driveDocuments.data.files.map((file) => (
               <Pressable key={file.id} testID={`drive-document-${file.id}`} onPress={() => { void setDocumentId(file.id); setValue(file.id); setMessage(`${file.name} connected.`); }} style={({ pressed }) => [styles.driveRow, { backgroundColor: colors.secondary, opacity: pressed ? 0.75 : 1 }]}>
                 <Feather name="file-text" size={17} color={colors.primary} />
@@ -118,12 +118,13 @@ export default function DocumentScreen() {
             {createDocument.isPending ? <ActivityIndicator color={colors.primary} /> : <Feather name="plus" size={18} color={colors.primary} />}
             <Text style={[styles.secondaryText, { color: colors.secondaryForeground }]}>Create document</Text>
           </Pressable>
+          {createDocument.isError ? <Text style={[styles.panelText, { color: colors.destructive }]}>{createDocument.error.message}</Text> : null}
         </View>
 
         {documentId ? (
           <View style={[styles.current, { backgroundColor: colors.secondary }]}>
             <View style={styles.currentTop}><Feather name="check-circle" size={18} color={colors.primary} /><Text style={[styles.currentTitle, { color: colors.secondaryForeground }]}>Connected</Text></View>
-            {documentQuery.isLoading ? <ActivityIndicator color={colors.primary} /> : documentQuery.isError ? <Text style={[styles.panelText, { color: colors.destructive }]}>We couldn't read the document.</Text> : (
+            {documentQuery.isLoading ? <ActivityIndicator color={colors.primary} /> : documentQuery.isError ? <Text style={[styles.panelText, { color: colors.destructive }]}>{documentQuery.error?.message || "We couldn't read the document."}</Text> : (
               <>
                 <Text style={[styles.docTitle, { color: colors.foreground }]}>{documentQuery.data?.title || 'Google Doc'}</Text>
                 <View style={styles.tabsRow}>{(documentQuery.data?.tabs || []).map((tab) => <View key={tab.tabId} style={[styles.tabChip, { backgroundColor: colors.card }]}><Text style={[styles.tabText, { color: colors.secondaryForeground }]}>{tab.title}</Text></View>)}</View>

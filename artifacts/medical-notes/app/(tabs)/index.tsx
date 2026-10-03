@@ -249,7 +249,7 @@ export default function CaptureScreen() {
         {submitNote.isError && (
           <View style={[styles.error, { backgroundColor: '#FBE8E8' }]}>
             <Feather name="alert-circle" size={17} color={colors.destructive} />
-            <Text style={[styles.noticeText, { color: colors.destructive }]}>Could not save this note. Check the document connection.</Text>
+            <Text style={[styles.noticeText, { color: colors.destructive }]}>{submitNote.error?.message || 'Could not save this note. Check the document connection.'}</Text>
           </View>
         )}
         {savedMessage ? (

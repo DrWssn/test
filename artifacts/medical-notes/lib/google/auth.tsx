@@ -12,11 +12,17 @@ export const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/documents',
 ];
 
+// The web client ID is optional: access tokens only need the Android OAuth client (package name + SHA-1).
+const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || undefined;
+
 GoogleSignin.configure({
-  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+  ...(webClientId ? { webClientId } : {}),
   scopes: GOOGLE_SCOPES,
   offlineAccess: false,
 });
+
+// Play Services' DEVELOPER_ERROR: no Android OAuth client matches this APK's package name and SHA-1.
+const DEVELOPER_ERROR = '10';
 
 type AuthState = {
   ready: boolean;
@@ -33,6 +39,11 @@ export async function getAccessToken(): Promise<string> {
   const { accessToken } = await GoogleSignin.getTokens();
   if (!accessToken) throw new Error('Not signed in to Google.');
   return accessToken;
+}
+
+/** Drops a token Google rejected so the next getAccessToken() fetches a fresh one. */
+export async function discardAccessToken(token: string): Promise<void> {
+  await GoogleSignin.clearCachedAccessToken(token);
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -68,6 +79,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setError('Google Play Services is not available on this phone.');
           return;
         }
+        if (String(e.code) === DEVELOPER_ERROR) {
+          setError(
+            'Google sign-in is not set up for this APK (DEVELOPER_ERROR). Add an Android OAuth client for ' +
+              'com.drwssn.medicalnotes with this APK\'s SHA-1 in Google Cloud Console.',
+          );
+          return;
+        }
+        if (e.code === statusCodes.SIGN_IN_CANCELLED) return;
         setError(`Google sign-in failed (${e.code}). Check the OAuth client setup.`);
         return;
       }

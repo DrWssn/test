@@ -30,11 +30,24 @@ jobs:
         working-directory: artifacts/medical-notes
         run: pnpm exec expo prebuild --platform android --no-install
 
+      # Google sign-in only works if an Android OAuth client in Google Cloud has this exact SHA-1.
+      - name: Show signing SHA-1 for Google Cloud
+        working-directory: artifacts/medical-notes/android/app
+        run: |
+          SHA1=$(keytool -list -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android | grep 'SHA1:' | awk '{print $2}')
+          echo "Signing SHA-1: $SHA1"
+          {
+            echo "### Google Cloud Android OAuth client"
+            echo "- Package name: \`com.drwssn.medicalnotes\`"
+            echo "- SHA-1: \`$SHA1\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Build APK (JS bundled in, debug-signed)
         working-directory: artifacts/medical-notes/android
         env:
-          EXPO_PUBLIC_DOMAIN: ${{ vars.EXPO_PUBLIC_DOMAIN }}
-        run: ./gradlew assembleRelease --no-daemon
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+        # arm64 only: covers virtually all current phones and cuts native build time by ~4x.
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a
 
       - uses: actions/upload-artifact@v4
         with:

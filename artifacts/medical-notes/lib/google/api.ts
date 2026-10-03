@@ -1,5 +1,5 @@
 // Direct Google Drive / Docs calls from the phone, replacing the old api-server.
-import { getAccessToken } from './auth';
+import { discardAccessToken, getAccessToken } from './auth';
 
 export type TabInfo = { tabId: string; title: string };
 export type DocumentInfo = { documentId: string; title: string; url: string; tabs: TabInfo[] };
@@ -30,16 +30,29 @@ export class GoogleApiError extends Error {
 }
 
 async function google(url: string, init: RequestInit = {}): Promise<Response> {
+  const send = (token: string) =>
+    fetch(url, {
+      ...init,
+      headers: { ...(init.headers as Record<string, string> | undefined), Authorization: `Bearer ${token}` },
+    });
   const token = await getAccessToken();
-  return fetch(url, {
-    ...init,
-    headers: { ...(init.headers as Record<string, string> | undefined), Authorization: `Bearer ${token}` },
-  });
+  const res = await send(token);
+  if (res.status !== 401) return res;
+  // Cached token expired or was revoked: drop it and retry once with a fresh one.
+  await discardAccessToken(token);
+  return send(await getAccessToken());
 }
 
 async function googleJson<T>(url: string, init: RequestInit, failMessage: string): Promise<T> {
   const res = await google(url, init);
-  if (!res.ok) throw new GoogleApiError(failMessage, res.status);
+  if (!res.ok) {
+    // Google's own reason (e.g. "Google Docs API has not been used in project ...") makes setup problems fixable.
+    const detail = await res
+      .json()
+      .then((body: any) => body?.error?.message as string | undefined)
+      .catch(() => undefined);
+    throw new GoogleApiError(detail ? `${failMessage} (${res.status}: ${detail})` : `${failMessage} (${res.status})`, res.status);
+  }
   return (await res.json()) as T;
 }
 
