@@ -57,6 +57,7 @@
   },
   "dependencies": {
     "@react-native-google-signin/google-signin": "^16.1.5",
-    "expo-clipboard": "^8.0.8"
+    "expo-clipboard": "^8.0.8",
+    "expo-file-system": "~19.0.24"
   }
 }

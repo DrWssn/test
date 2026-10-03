@@ -1,14 +1,6 @@
 // Drop-in replacements for the old @workspace/api-client-react hooks, same names and call shapes.
 import { useMutation, useQuery, type UseQueryOptions } from '@tanstack/react-query';
-import {
-  createDocument,
-  getDocument,
-  listDriveDocuments,
-  submitNote,
-  type DocumentInfo,
-  type DriveFile,
-  type SubmitNoteInput,
-} from './api';
+import { createDocument, getDocument, listDriveDocuments, type DocumentInfo, type DriveFile } from './api';
 
 export const getGetDocumentQueryKey = (documentId: string) => ['google', 'document', documentId] as const;
 export const getListDriveDocumentsQueryKey = () => ['google', 'drive-documents'] as const;
@@ -33,8 +25,4 @@ export function useListDriveDocuments(options?: QueryOpts<{ files: DriveFile[] }
 
 export function useCreateDocument() {
   return useMutation({ mutationFn: ({ data }: { data: { title: string } }) => createDocument(data.title) });
-}
-
-export function useSubmitNote() {
-  return useMutation({ mutationFn: ({ data }: { data: SubmitNoteInput }) => submitNote(data) });
 }

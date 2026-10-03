@@ -169,11 +169,33 @@ async function uploadImageToDrive(base64: string, mimeType: string, fileName: st
   return uploaded.webViewLink || `https://drive.google.com/file/d/${encodeURIComponent(uploaded.id)}/view`;
 }
 
-const tagPattern = /#[a-zA-Z][a-zA-Z0-9_-]*/g;
+export const tagPattern = /#[a-zA-Z][a-zA-Z0-9_-]*/g;
 const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
-function normalizedTag(tag: string) {
+/** "#follow-up" -> "follow up": the title a new tab gets for this tag. */
+export function normalizedTag(tag: string) {
   return tag.slice(1).replace(/[-_]+/g, ' ').trim().replace(/\s+/g, ' ');
+}
+
+/** Case, spaces, hyphens and underscores don't matter when matching a tag to a tab ("#Follow_Up" = "Follow-up"). */
+export function canonicalTabName(name: string) {
+  return name.toLowerCase().replace(/[-_\s]+/g, ' ').trim();
+}
+
+/** The tag that files a note into this tab, or null if the title can't be written as a tag (e.g. "Ob/Gyn"). */
+export function tagForTab(title: string): string | null {
+  const tag = `#${title.trim().replace(/\s+/g, '-')}`;
+  return /^#[a-zA-Z][a-zA-Z0-9_-]*$/.test(tag) ? tag : null;
+}
+
+/**
+ * True if retrying later could succeed: no network, Google busy or down, or the sign-in needs renewing.
+ * False for problems that won't fix themselves, like a deleted document or one you can't edit.
+ */
+export function isRetryableError(e: unknown) {
+  if (!(e instanceof GoogleApiError)) return true;
+  if (e.status === undefined) return false;
+  return e.status === 401 || e.status === 408 || e.status === 429 || e.status >= 500;
 }
 
 export async function submitNote(input: SubmitNoteInput): Promise<SubmitNoteResult> {
@@ -215,7 +237,7 @@ export async function submitNote(input: SubmitNoteInput): Promise<SubmitNoteResu
   for (let attempt = 0; attempt < 3 && !saved; attempt++) {
     const document = await fetchRawDocument(documentId);
     const tabs = extractTabs(document);
-    const target = tabs.find((t) => t.title.toLowerCase() === tagTitle.toLowerCase());
+    const target = tabs.find((t) => canonicalTabName(t.title) === canonicalTabName(tagTitle));
 
     if (!target) {
       if (createdTab) throw new GoogleApiError(`The ${tagTitle} tab was created, but the note could not be routed.`);
@@ -312,7 +334,7 @@ export async function submitNote(input: SubmitNoteInput): Promise<SubmitNoteResu
     message:
       (createdTab
         ? `Created the ${tagTitle} tab and saved the note there on its own page.`
-        : `Saved to ${tagTitle} on a new page.`) +
+        : `Saved to ${target.title} on a new page.`) +
       (privateImageLink ? ' Image attached as a private Google Drive link.' : '') +
       imageLinkMessage,
   };

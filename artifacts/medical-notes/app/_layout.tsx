@@ -16,6 +16,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { GoogleApiError } from '@/lib/google/api';
 import { AuthProvider } from '@/lib/google/auth';
 import { SignInGate } from '@/lib/google/SignInGate';
+import { OutboxProvider } from '@/lib/outbox';
 import { DocumentProvider } from '@/context/DocumentContext';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -68,7 +69,9 @@ export default function RootLayout() {
               <KeyboardProvider>
                 <AuthProvider>
                   <SignInGate>
-                    <RootLayoutNav />
+                    <OutboxProvider>
+                      <RootLayoutNav />
+                    </OutboxProvider>
                   </SignInGate>
                 </AuthProvider>
               </KeyboardProvider>

@@ -7,6 +7,7 @@ import { useColors } from '@/hooks/useColors';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAuth } from '@/lib/google/auth';
+import { useOutbox } from '@/lib/outbox';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function getDocumentId(value: string) {
@@ -32,9 +33,14 @@ export default function DocumentScreen() {
   });
   const createDocument = useCreateDocument();
   const { email, signOut } = useAuth();
+  const outbox = useOutbox();
 
   const confirmSignOut = () => {
-    Alert.alert('Sign out?', 'You will need to sign in with Google again, and the connected document will be forgotten.', [
+    const unsent = outbox.items.length;
+    const warning = unsent
+      ? `\n\n${unsent === 1 ? '1 unsent note stays' : `${unsent} unsent notes stay`} on this phone and will be sent after you sign in again with the same account.`
+      : '';
+    Alert.alert('Sign out?', `You will need to sign in with Google again, and the connected document will be forgotten.${warning}`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Sign out', style: 'destructive', onPress: () => void signOut() },
     ]);

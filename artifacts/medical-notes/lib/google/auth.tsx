@@ -6,7 +6,9 @@ import {
 } from '@react-native-google-signin/google-signin';
 import { useQueryClient } from '@tanstack/react-query';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDocument } from '@/context/DocumentContext';
+import { DRAFT_KEY } from '@/lib/storageKeys';
 
 // Full Drive access is needed to list and edit Google Docs the app did not create.
 export const GOOGLE_SCOPES = [
@@ -136,6 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // The next account must not see this account's documents or keep writing to its doc.
     queryClient.clear();
     await clearDocument();
+    await AsyncStorage.removeItem(DRAFT_KEY).catch(() => undefined);
     setEmail(null);
   }, [queryClient, clearDocument]);
 
